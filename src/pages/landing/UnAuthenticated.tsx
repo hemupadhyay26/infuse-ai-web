@@ -1,8 +1,11 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Upload, MessageSquare, History, Brain } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 
-export default function UnAuthenticated({ navigate }: { navigate: (path: string) => void }) {
+export default function UnAuthenticated() {
+  const navigate = useNavigate();
+
   return (
     <div className="min-h-screen bg-background text-foreground transition-colors">
       <div className="absolute top-4 right-4">

@@ -3,9 +3,12 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
-import { Upload, FileText, Trash2, Eye, Brain, ArrowLeft } from "lucide-react";
+import { Upload, FileText, Trash2, ArrowLeft } from "lucide-react";
 // import { ThemeToggle } from "@/components/theme-toggle";
 import { Link } from "react-router-dom";
+import { fileService } from "@/services/fileService";
+import { uploadService } from "@/services/uploadService";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 
 interface UploadedFile {
   id: string;
@@ -13,65 +16,71 @@ interface UploadedFile {
   size: number;
   uploadDate: string;
   status: "processing" | "ready" | "error";
-  progress: number;
+  progress?: number;
 }
 
 export default function Dashboard() {
   const [files, setFiles] = useState<UploadedFile[]>([]);
   const [isDragging, setIsDragging] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [fileToDelete, setFileToDelete] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const fetchFiles = async () => {
+    try {
+      const apiFiles = await fileService.listFiles();
+      // Map API response to UploadedFile[]
+      const mappedFiles = apiFiles.map((f: any) => ({
+        id: f.fileId,
+        name: f.fileName,
+        size: f.fileSize || 0, // If backend doesn't provide, default to 0
+        uploadDate: f.uploadedAt,
+        status: "ready" as const,
+      }));
+      setFiles(mappedFiles);
+    } catch (err) {
+      setFiles([]);
+    }
+  };
 
   useEffect(() => {
-    // Load existing files from localStorage
-    const savedFiles = localStorage.getItem("uploaded_files");
-    if (savedFiles) {
-      setFiles(JSON.parse(savedFiles));
-    }
+    fetchFiles();
   }, []);
 
-  const handleFileUpload = (selectedFiles: FileList | null) => {
+  const handleFileUpload = async (selectedFiles: FileList | null) => {
     if (!selectedFiles) return;
+    setUploading(true);
 
-    const newFiles: UploadedFile[] = Array.from(selectedFiles).map((file) => ({
-      id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
-      name: file.name,
-      size: file.size,
-      uploadDate: new Date().toISOString(),
-      status: "processing",
-      progress: 0,
-    }));
+    for (const file of Array.from(selectedFiles)) {
+      // Use a more unique tempId
+      const tempId = `${file.name}-${file.size}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      setFiles((prev) => [
+        ...prev,
+        {
+          id: tempId,
+          name: file.name,
+          size: file.size,
+          uploadDate: new Date().toISOString(),
+          status: "processing",
+          progress: 0,
+        },
+      ]);
 
-    setFiles((prev) => [...prev, ...newFiles]);
-
-    // Simulate file processing
-    newFiles.forEach((file) => {
-      const interval = setInterval(() => {
+      try {
+        await uploadService.uploadFile(file);
+        // Always refetch file list after upload to avoid NaN and ensure latest data
+        await fetchFiles();
+      } catch (err) {
         setFiles((prev) =>
-          prev.map((f) => {
-            if (f.id === file.id) {
-              const newProgress = Math.min(f.progress + 10, 100);
-              return {
-                ...f,
-                progress: newProgress,
-                status: newProgress === 100 ? "ready" : "processing",
-              };
-            }
-            return f;
-          })
+          prev.map((f) =>
+            f.id === tempId
+              ? { ...f, status: "error" as const }
+              : f
+          )
         );
-      }, 200);
-
-      setTimeout(() => {
-        clearInterval(interval);
-        setFiles((prev) => {
-          const updated = prev.map((f) =>
-            f.id === file.id ? { ...f, status: "ready" as const, progress: 100 } : f
-          );
-          localStorage.setItem("uploaded_files", JSON.stringify(updated));
-          return updated;
-        });
-      }, 2000);
-    });
+      }
+    }
+    setUploading(false);
   };
 
   const handleDrop = (e: React.DragEvent) => {
@@ -90,10 +99,26 @@ export default function Dashboard() {
     setIsDragging(false);
   };
 
-  const deleteFile = (id: string) => {
-    const updated = files.filter((f) => f.id !== id);
-    setFiles(updated);
-    localStorage.setItem("uploaded_files", JSON.stringify(updated));
+  const handleDeleteClick = (id: string) => {
+    setFileToDelete(id);
+    setShowDeleteDialog(true);
+  };
+
+  const confirmDeleteFile = async () => {
+    if (!fileToDelete) return;
+    try {
+      await fileService.deleteFile(fileToDelete);
+      setFiles((prev) => prev.filter((f) => f.id !== fileToDelete));
+    } catch {
+      // Optionally handle error (e.g., show notification)
+    }
+    setShowDeleteDialog(false);
+    setFileToDelete(null);
+  };
+
+  const cancelDelete = () => {
+    setShowDeleteDialog(false);
+    setFileToDelete(null);
   };
 
   const formatFileSize = (bytes: number) => {
@@ -113,11 +138,9 @@ export default function Dashboard() {
               <Link to="/" className="mr-4">
                 <Button variant="ghost" size="sm">
                   <ArrowLeft className="h-4 w-4 mr-2" />
-                  Back
                 </Button>
               </Link>
-              <Brain className="h-8 w-8 text-indigo-600 dark:text-indigo-400 mr-3" />
-              <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Document Dashboard</h1>
+              <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Dashboard</h1>
             </div>
             <div className="flex items-center gap-4">
               <Link to="/chat">
@@ -139,11 +162,10 @@ export default function Dashboard() {
         <Card className="mb-8 dark:bg-gray-800 dark:border-gray-700">
           <CardContent className="p-6">
             <div
-              className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
-                isDragging
-                  ? "border-indigo-500 bg-indigo-50 dark:bg-indigo-950 dark:border-indigo-400"
-                  : "border-gray-300 dark:border-gray-600 hover:border-gray-400 dark:hover:border-gray-500"
-              }`}
+              className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${isDragging
+                ? "border-indigo-500 bg-indigo-50 dark:bg-indigo-950 dark:border-indigo-400"
+                : "border-gray-300 dark:border-gray-600 hover:border-gray-400 dark:hover:border-gray-500"
+                }`}
               onDrop={handleDrop}
               onDragOver={handleDragOver}
               onDragLeave={handleDragLeave}
@@ -151,8 +173,8 @@ export default function Dashboard() {
               <Upload className="h-12 w-12 text-gray-400 dark:text-gray-500 mx-auto mb-4" />
               <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">Drop your PDF files here</h3>
               <p className="text-gray-600 dark:text-gray-300 mb-4">or click to browse and select files</p>
-              <Button onClick={() => fileInputRef.current?.click()} className="mb-2">
-                Choose Files
+              <Button onClick={() => fileInputRef.current?.click()} className="mb-2" disabled={uploading}>
+                {uploading ? "Uploading..." : "Choose Files"}
               </Button>
               <p className="text-sm text-gray-500 dark:text-gray-400">Supports PDF files up to 10MB each</p>
               <input
@@ -182,9 +204,9 @@ export default function Dashboard() {
               </div>
             ) : (
               <div className="space-y-4">
-                {files.map((file) => (
+                {files.map((file, idx) => (
                   <div
-                    key={file.id}
+                    key={file.id + '-' + idx}
                     className="flex items-center justify-between p-4 border dark:border-gray-600 rounded-lg dark:bg-gray-700/50"
                   >
                     <div className="flex items-center space-x-4 flex-1">
@@ -195,7 +217,7 @@ export default function Dashboard() {
                           <span>{formatFileSize(file.size)}</span>
                           <span>{new Date(file.uploadDate).toLocaleDateString()}</span>
                         </div>
-                        {file.status === "processing" && (
+                        {file.status === "processing" && file.progress !== undefined && (
                           <div className="mt-2">
                             <Progress value={file.progress} className="w-full" />
                             <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
@@ -211,21 +233,21 @@ export default function Dashboard() {
                           file.status === "ready"
                             ? "default"
                             : file.status === "processing"
-                            ? "secondary"
-                            : "destructive"
+                              ? "secondary"
+                              : "destructive"
                         }
                       >
                         {file.status === "ready"
                           ? "Ready"
                           : file.status === "processing"
-                          ? "Processing"
-                          : "Error"}
+                            ? "Processing"
+                            : "Error"}
                       </Badge>
-                      <Button variant="ghost" size="sm">
+                      {/* <Button variant="ghost" size="sm">
                         <Eye className="h-4 w-4" />
-                      </Button>
-                      <Button variant="ghost" size="sm" onClick={() => deleteFile(file.id)}>
-                        <Trash2 className="h-4 w-4" />
+                      </Button> */}
+                      <Button variant="ghost" size="sm" onClick={() => handleDeleteClick(file.id)}>
+                        <Trash2 className="h-4 w-4 text-red-500 dark:text-red-400" />
                       </Button>
                     </div>
                   </div>
@@ -235,6 +257,24 @@ export default function Dashboard() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Confirm Delete</DialogTitle>
+          </DialogHeader>
+          <div>Are you sure you want to delete this file?</div>
+          <DialogFooter>
+            <Button variant="secondary" onClick={cancelDelete}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={confirmDeleteFile}>
+              Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

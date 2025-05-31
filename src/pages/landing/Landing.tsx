@@ -1,25 +1,23 @@
-import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useAuth } from "@/context/AuthContext";
 import UnAuthenticated from "./UnAuthenticated";
 import Authenticated from "./Authenticated";
 // import { ThemeToggle } from "@/components/theme-toggle";
 
 export default function Landing() {
-  const [isAuthenticated, setIsAuthenticated] = useState(true);
-  const navigate = useNavigate();
+  const { user, loading } = useAuth();
 
-  useEffect(() => {
-    const token = localStorage.getItem("auth_token");
-    setIsAuthenticated(!!token);
-  }, []);
-
-  if (!!isAuthenticated) {
+  if (loading) {
+    // Optional: Replace with a spinner or skeleton if you have one
     return (
-        <Authenticated navigate={navigate} setIsAuthenticated={setIsAuthenticated} />
+      <div className="flex items-center justify-center min-h-screen">
+        <span className="text-lg text-gray-500">Loading...</span>
+      </div>
     );
-}
+  }
 
-  return (
-<UnAuthenticated navigate={navigate} />
-  );
+  if (user) {
+    return <Authenticated />;
+  }
+
+  return <UnAuthenticated />;
 }

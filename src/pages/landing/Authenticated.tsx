@@ -1,23 +1,33 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Upload, MessageSquare, History, Brain } from "lucide-react";
+import { useAuth } from "@/context/AuthContext";
+import { Upload, MessageSquare, History, Brain, Menu } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { useState } from "react";
 
-interface AuthenticatedProps {
-  navigate: (path: string) => void;
-  setIsAuthenticated: (value: boolean) => void;
-}
+export default function Authenticated() {
+  const { logout } = useAuth();
+  const navigate = useNavigate();
+  const [navOpen, setNavOpen] = useState(false);
 
-export default function Authenticated({ navigate, setIsAuthenticated }: AuthenticatedProps) {
   return (
     <div className="min-h-screen bg-background text-foreground">
       <nav className="bg-card shadow-sm border-b border-border">
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
+            {/* Logo/title - always left */}
             <div className="flex items-center">
               <Brain className="h-8 w-8 text-primary mr-3" />
               <h1 className="text-2xl font-bold text-foreground">Infuse AI</h1>
             </div>
-            <div className="flex items-center gap-4">
+            {/* Mobile hamburger - right side on mobile */}
+            <div className="md:hidden ml-auto">
+              <Button variant="ghost" size="icon" onClick={() => setNavOpen(true)}>
+                <Menu className="h-6 w-6" />
+              </Button>
+            </div>
+            {/* Desktop nav */}
+            <div className="hidden md:flex items-center gap-4 ml-auto">
               <Button variant="ghost" onClick={() => navigate("/dashboard")}>
                 Dashboard
               </Button>
@@ -31,8 +41,8 @@ export default function Authenticated({ navigate, setIsAuthenticated }: Authenti
               <Button
                 variant="outline"
                 onClick={() => {
-                  localStorage.removeItem("auth_token");
-                  setIsAuthenticated(false);
+                  logout();
+                  navigate("/");
                 }}
               >
                 Sign Out
@@ -40,6 +50,44 @@ export default function Authenticated({ navigate, setIsAuthenticated }: Authenti
             </div>
           </div>
         </div>
+        {/* Mobile nav drawer - left side */}
+        {navOpen && (
+          <div className="fixed inset-0 z-40 bg-black/40 md:hidden" onClick={() => setNavOpen(false)}>
+            <div
+              className="absolute top-0 left-0 w-56 bg-white dark:bg-gray-800 shadow-lg h-full flex flex-col p-4 gap-2"
+              onClick={e => e.stopPropagation()}
+            >
+              <Button className="w-full mb-2" variant="ghost" onClick={() => { setNavOpen(false); navigate("/dashboard"); }}>
+                Dashboard
+              </Button>
+              <Button className="w-full mb-2" variant="ghost" onClick={() => { setNavOpen(false); navigate("/chat"); }}>
+                Chat
+              </Button>
+              <Button className="w-full mb-2" variant="ghost" onClick={() => { setNavOpen(false); navigate("/history"); }}>
+                History
+              </Button>
+              {/* <ThemeToggle /> */}
+              <Button
+                className="w-full mt-2"
+                variant="outline"
+                onClick={() => {
+                  logout();
+                  setNavOpen(false);
+                  navigate("/");
+                }}
+              >
+                Sign Out
+              </Button>
+              <Button
+                variant="ghost"
+                className="w-full mt-2"
+                onClick={() => setNavOpen(false)}
+              >
+                Close
+              </Button>
+            </div>
+          </div>
+        )}
       </nav>
 
       <div className="container mx-auto px-4 py-8">
@@ -52,7 +100,7 @@ export default function Authenticated({ navigate, setIsAuthenticated }: Authenti
           </p>
         </div>
 
-        <div className="grid md:grid-cols-3 gap-6 max-w-4xl mx-auto">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6 max-w-4xl mx-auto">
           <Card
             className="hover:shadow-lg transition-shadow cursor-pointer"
             onClick={() => navigate("/dashboard")}

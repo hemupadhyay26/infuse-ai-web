@@ -4,6 +4,8 @@ import './App.css'
 import Landing from './pages/landing/Landing';
 import Login from './pages/auth/Login';
 import Dashboard from './pages/Dashboard/Dashboard';
+import ChatPage from './pages/chat/Chat';
+import ChatHistory from './pages/chat/ChatHistory';
 
 const router = createBrowserRouter(
   createRoutesFromElements(
@@ -12,6 +14,8 @@ const router = createBrowserRouter(
       <Route path="/auth/login" element={<Login />} />
       <Route path="/auth/signup" element={<Signup />} />
       <Route path="/dashboard" element={<Dashboard />} />
+      <Route path="/chat" element={<ChatPage />} />
+      <Route path="/history" element={<ChatHistory />} />
     </Route>
   )
 )
